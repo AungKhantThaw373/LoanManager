@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -11,6 +12,18 @@ val configuredLoanApiBaseUrl = providers.gradleProperty("loanApiBaseUrl")
     .orElse("https://api.example.com/")
     .get()
     .let { if (it.endsWith('/')) it else "$it/" }
+
+run {
+    val apiUri = runCatching { URI(configuredLoanApiBaseUrl) }.getOrElse {
+        throw GradleException("loanApiBaseUrl must be an absolute HTTP(S) URL, for example https://api.example.org/")
+    }
+    require(apiUri.scheme.equals("https", ignoreCase = true) || apiUri.scheme.equals("http", ignoreCase = true)) {
+        "loanApiBaseUrl must use HTTP or HTTPS."
+    }
+    require(!apiUri.host.isNullOrBlank() && apiUri.rawQuery == null && apiUri.rawFragment == null) {
+        "loanApiBaseUrl must be the server origin (optionally with a base path), without query or fragment."
+    }
+}
 
 kotlin {
 

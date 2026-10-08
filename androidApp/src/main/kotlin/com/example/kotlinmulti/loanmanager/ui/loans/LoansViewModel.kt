@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
+import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
+import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoLoansRepository
 
 class LoansViewModel(
     private val repository: LoansRepository
@@ -156,7 +158,8 @@ class LoansViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(LoansViewModel::class.java)) {
                     val authenticatedRepository = repository
-                        ?: LoansRepositoryImpl(LoanApiService.create(), authToken)
+                        ?: if (OfflineDemoMode.isSession(authToken)) OfflineDemoLoansRepository()
+                        else LoansRepositoryImpl(LoanApiService.create(), authToken)
                     return LoansViewModel(authenticatedRepository) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")

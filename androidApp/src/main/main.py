@@ -273,6 +273,13 @@ MOCK_GROUP_MEMBERS: Dict[str, List[dict]] = {
 DEMO_EMAIL = "admin2@gmail.com"
 DEMO_PASSWORD = "admin123"
 DEMO_TOKEN = "mock-km-microfinance-token"
+MOCK_PROFILE = {
+    "id": "8da06277-9676-4973-877d-bf6bdb48a9d2",
+    "name": "Admin 2",
+    "email": DEMO_EMAIL,
+    "role": "MANAGER",
+    "photoUrl": None
+}
 
 
 # -----------------------------------------------------------------------------
@@ -287,6 +294,24 @@ async def login(request: LoginRequest):
         )
 
     return LoginResponse(token=DEMO_TOKEN)
+
+
+@app.post("/api/auth/logout")
+async def logout(authorization: Optional[str] = Header(None)):
+    if authorization != f"Bearer {DEMO_TOKEN}":
+        return JSONResponse(status_code=401, content={"message": "Authentication required."})
+    return {"status": "success", "message": "Logged out successfully."}
+
+
+@app.get("/api/users/me")
+async def get_current_user(authorization: Optional[str] = Header(None)):
+    if authorization != f"Bearer {DEMO_TOKEN}":
+        return JSONResponse(status_code=401, content={"message": "Authentication required."})
+    return {
+        "status": "success",
+        "message": "Your profile fetched successfully",
+        "user": MOCK_PROFILE
+    }
 
 
 @app.get("/api/loans", response_model=LoansApiResponse)

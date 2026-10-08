@@ -1,7 +1,6 @@
 package com.example.kotlinmulti.loanmanager.ui.repayments
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,8 +61,6 @@ fun RepaymentDetailsScreen(
     onRetry: () -> Unit = {},
     onBackClick: () -> Unit
 ) {
-    BackHandler(onBack = onBackClick)
-
     var isLoanSummaryExpanded by remember { mutableStateOf(true) }
 
     Scaffold(

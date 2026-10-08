@@ -9,6 +9,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
 
 @Composable
 fun LoanDetailsRoute(
@@ -37,17 +44,34 @@ fun LoanDetailsRoute(
         exportText = null
     }
 
-    ConnectedLoanDetailsScreen(
-        loanId = loanId,
-        authToken = authToken,
-        onBackClick = onBackClick,
-        onDownloadClick = { loan ->
+    val onDownload: (Loan) -> Unit = { loan ->
             exportText = loan.toExportText()
             val safeName = loan.loanIdNo.ifBlank { loan.loanNumber }
                 .replace(Regex("[^A-Za-z0-9_-]"), "_")
             createDocument.launch("${safeName.ifBlank { "loan_details" }}_details.txt")
         }
-    )
+
+    if (OfflineDemoMode.isSession(authToken)) {
+        val demoLoan = remember(loanId) { OfflineDemoMode.loanDetails(loanId) }
+        if (demoLoan != null) {
+            LoanDetailsScreen(
+                loan = demoLoan,
+                onBackClick = onBackClick,
+                onDownloadClick = { onDownload(demoLoan) }
+            )
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Demo loan not found.", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    } else {
+        ConnectedLoanDetailsScreen(
+            loanId = loanId,
+            authToken = authToken,
+            onBackClick = onBackClick,
+            onDownloadClick = onDownload
+        )
+    }
 }
 
 private fun Loan.toExportText(): String = buildString {

@@ -24,6 +24,8 @@ import com.example.kotlinmulti.loanmanager.ui.auth.AuthSessionViewModel
 import com.example.kotlinmulti.loanmanager.ui.loans.LoanDetailsRoute
 import com.example.kotlinmulti.loanmanager.ui.repayments.RepaymentDetailsScreen
 import com.example.kotlinmulti.loanmanager.ui.repayments.RepaymentViewModel
+import com.example.kotlinmulti.loanmanager.domain.model.LoanRecord
+import com.google.gson.Gson
 
 @Composable
 fun AppNavigation() {
@@ -34,7 +36,11 @@ fun AppNavigation() {
 
     NavHost(
         navController = navController,
-        startDestination = if (authToken == null) "login" else "loans"
+        startDestination = if (authToken == null) "login" else "loans",
+        enterTransition = { androidx.compose.animation.EnterTransition.None },
+        exitTransition = { androidx.compose.animation.ExitTransition.None },
+        popEnterTransition = { androidx.compose.animation.EnterTransition.None },
+        popExitTransition = { androidx.compose.animation.ExitTransition.None }
     ) {
 
         composable("login") {
@@ -75,10 +81,16 @@ fun AppNavigation() {
         }
 
         composable(
-            route = "repaymentDetails/{loanId}",
-            arguments = listOf(navArgument("loanId") { type = NavType.StringType })
+            route = "repaymentDetails/{loanId}?record={record}",
+            arguments = listOf(
+                navArgument("loanId") { type = NavType.StringType },
+                navArgument("record") { type = NavType.StringType; defaultValue = "" }
+            )
         ) { entry ->
-            val record = remember(entry.id) { LoanRecordStore.repaymentRecord }
+            val recordJson = entry.arguments?.getString("record").orEmpty()
+            val record = remember(recordJson) {
+                runCatching { Gson().fromJson(recordJson, LoanRecord::class.java) }.getOrNull()
+            }
             val repaymentViewModel: RepaymentViewModel = viewModel(
                 key = "repaymentDetails-${entry.arguments?.getString("loanId")}",
                 factory = RepaymentViewModel.provideFactory(authToken)
@@ -87,6 +99,7 @@ fun AppNavigation() {
             val loanId = entry.arguments?.getString("loanId").orEmpty()
             LaunchedEffect(loanId) { repaymentViewModel.fetchForLoan(loanId) }
             if (record == null) {
+                LaunchedEffect(entry.id) { navController.popBackStack() }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -112,6 +125,13 @@ fun AppNavigation() {
             } else {
                 ProfileScreen(
                     authToken = token,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo("loans") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onLogout = {
                         session.signOut()
                         navController.navigate("login") {

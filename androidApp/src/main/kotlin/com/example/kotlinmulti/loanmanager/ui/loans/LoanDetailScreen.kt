@@ -1,7 +1,6 @@
 package com.example.kotlinmulti.loanmanager.ui.loans
 
 import androidx.compose.foundation.BorderStroke
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -424,8 +423,6 @@ fun LoanDetailsScreen(
     onMemberClick: (Customer) -> Unit = {},
     onDownloadClick: () -> Unit = {}
 ) {
-    BackHandler(onBack = onBackClick)
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         topBar = {

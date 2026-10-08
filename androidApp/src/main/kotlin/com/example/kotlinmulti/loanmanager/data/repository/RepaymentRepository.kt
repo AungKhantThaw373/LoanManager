@@ -5,6 +5,7 @@ import com.example.kotlinmulti.loanmanager.domain.model.RepaymentRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
 
 class RepaymentRepository(
     private val apiService: LoanApiService,
@@ -12,6 +13,9 @@ class RepaymentRepository(
 ) {
     suspend fun fetchHistory(loanId: String): Result<List<RepaymentRecord>> =
         withContext(Dispatchers.IO) {
+            if (OfflineDemoMode.isSession(authToken)) {
+                return@withContext Result.success(OfflineDemoMode.repaymentHistory(loanId))
+            }
             try {
                 val response = apiService.getRepaymentHistory(
                     loanId = loanId,

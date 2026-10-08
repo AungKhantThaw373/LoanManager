@@ -52,7 +52,7 @@ import com.example.kotlinmulti.loanmanager.ui.components.EmptyStateView
 import com.example.kotlinmulti.loanmanager.ui.components.ErrorStateView
 import com.example.kotlinmulti.loanmanager.ui.components.FilterBottomSheet
 import com.example.kotlinmulti.loanmanager.ui.components.LoanItemRow
-import com.example.kotlinmulti.loanmanager.ui.navigation.LoanRecordStore
+import com.google.gson.Gson
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -249,8 +249,8 @@ fun LoansScreen(
                                         showPaidLabel = showRepaymentDetails,
                                         onItemClick = { clickedItem ->
                                             if (showRepaymentDetails) {
-                                                LoanRecordStore.repaymentRecord = clickedItem
-                                                navController.navigate("repaymentDetails/${Uri.encode(clickedItem.loanId)}")
+                                                val encodedRecord = Uri.encode(Gson().toJson(clickedItem))
+                                                navController.navigate("repaymentDetails/${Uri.encode(clickedItem.loanId)}?record=$encodedRecord")
                                             } else {
                                                 navController.navigate("loanDetails/${Uri.encode(clickedItem.loanId)}")
                                             }

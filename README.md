@@ -29,13 +29,15 @@ The Android app uses the production API directly. Set its origin (including sche
 
 Release packaging rejects the placeholder API host and any non-HTTPS URL. `API (3).md` documents API routes but does not specify the deployed host, so configure the real host before making a release build.
 
-For local mock-backend testing, run `python main.py` from `androidApp/src/main` with FastAPI and Uvicorn installed. The server listens on port `8000`. Then install the debug app with:
+For local mock-backend testing, install the Python dependencies once with `python -m pip install -r requirements.txt` from `androidApp/src/main`, then run `python main.py` in that directory. The server listens on port `8000`. Then install the debug app with:
 
 ```text
 .\gradlew.bat :androidApp:installDebug -PloanApiBaseUrl=http://10.0.2.2:8000/
 ```
 
 `10.0.2.2` reaches the development computer from the Android emulator. On a physical phone, use the computer's LAN IP instead, and make sure the phone can reach port `8000`. The debug manifest alone permits HTTP. The release manifest still blocks cleartext, and release tasks reject HTTP hosts. The mock login is `admin2@gmail.com` / `admin123`.
+
+To inspect the app without any backend, use the debug-only offline preview login shown on the sign-in page: `demo@offline.local` / `Preview123!`. It loads local sample loan and repayment records and a local demo profile. It is not accepted by release builds and does not call the API.
 
 ### Running tests
 

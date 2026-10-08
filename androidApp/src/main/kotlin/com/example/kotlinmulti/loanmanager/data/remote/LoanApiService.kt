@@ -1,13 +1,18 @@
 package com.example.kotlinmulti.loanmanager.data.remote
 
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
@@ -22,6 +27,21 @@ interface LoanApiService {
 
     @GET("api/users/me")
     suspend fun getCurrentUser(@Header("Authorization") token: String): CurrentUserApiResponse
+
+    @Multipart
+    @PATCH("api/users/me")
+    suspend fun updateCurrentUser(
+        @Header("Authorization") token: String,
+        @Part("name") name: RequestBody?,
+        @Part("email") email: RequestBody?,
+        @Part photo: MultipartBody.Part?
+    ): ProfileUpdateApiResponse
+
+    @PATCH("api/users/me/change-password")
+    suspend fun changeMyPassword(
+        @Header("Authorization") token: String,
+        @Body request: ChangePasswordRequest
+    ): ProfileUpdateApiResponse
 
     @GET("api/loans")
     suspend fun getLoans(
@@ -54,7 +74,7 @@ interface LoanApiService {
     ): RepaymentsApiResponse
 
     companion object {
-        val BASE_URL: String =  "http://192.168.99.10:8000/" //BuildConfig.LOAN_API_BASE_URL
+        val BASE_URL: String = "api here(eg:0.0.0.0/8000/)" //com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
 
         fun create(): LoanApiService {
             val client = OkHttpClient.Builder()
@@ -95,5 +115,18 @@ data class CurrentUserDto(
     val id: String,
     val name: String,
     val email: String,
-    val role: String
+    val role: String,
+    val photoUrl: String? = null
+)
+
+data class ChangePasswordRequest(
+    val password: String,
+    val confirmPassword: String
+)
+
+data class ProfileUpdateApiResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val result: CurrentUserDto? = null,
+    val user: CurrentUserDto? = null
 )

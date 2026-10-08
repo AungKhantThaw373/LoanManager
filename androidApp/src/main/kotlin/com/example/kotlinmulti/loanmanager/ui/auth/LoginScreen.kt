@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import com.example.kotlinmulti.loanmanager.data.auth.SecureTokenStore
 import com.example.kotlinmulti.loanmanager.data.remote.LoanApiService
 import com.example.kotlinmulti.loanmanager.data.remote.LoginRequest
+import com.example.kotlinmulti.BuildConfig
+import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -117,7 +119,7 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold,
                     color = textPrimaryColor,
                     textAlign = TextAlign.Center
-                )n
+                )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -141,6 +143,17 @@ fun LoginScreen(
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
+
+                        if (BuildConfig.DEBUG) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Offline preview (debug only): ${OfflineDemoMode.EMAIL} / ${OfflineDemoMode.PASSWORD}",
+                                color = textMutedColor,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -265,6 +278,11 @@ fun LoginScreen(
                                         isLoading = true
                                         errorMessage = null
                                         try {
+                                            if (BuildConfig.DEBUG && OfflineDemoMode.accepts(normalizedEmail, password)) {
+                                                if (rememberMe) tokenStore.write(OfflineDemoMode.TOKEN) else tokenStore.clear()
+                                                onLoginSuccess(OfflineDemoMode.TOKEN)
+                                                return@launch
+                                            }
                                             val response = withContext(Dispatchers.IO) {
                                                 val result = LoanApiService.instance.login(
                                                     LoginRequest(normalizedEmail, password)
