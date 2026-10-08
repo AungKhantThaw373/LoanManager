@@ -127,8 +127,9 @@ fun LoansScreen(
         ) { paddingValues ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
                     .padding(paddingValues)
+                    .fillMaxSize()
+
             ) {
                 Row(
                     modifier = Modifier
