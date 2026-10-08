@@ -59,8 +59,9 @@ import com.example.kotlinmulti.loanmanager.ui.customers.components.FilterBottomS
 @Composable
 fun CustomersScreen(
     navController: NavHostController,
+    authToken: String? = null,
     viewModel: CustomersViewModel = viewModel(
-        factory = CustomersViewModel.provideFactory()
+        factory = CustomersViewModel.provideFactory(authToken = authToken)
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

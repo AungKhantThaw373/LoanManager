@@ -140,12 +140,15 @@ class CustomersViewModel(
 
     companion object {
         fun provideFactory(
-            repository: CustomerRepository = CustomerRepositoryImpl(CustomerApiService.create())
+            repository: CustomerRepository? = null,
+            authToken: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(CustomersViewModel::class.java)) {
-                    return CustomersViewModel(repository) as T
+                    val authenticatedRepository = repository
+                        ?: CustomerRepositoryImpl(CustomerApiService.create(), authToken)
+                    return CustomersViewModel(authenticatedRepository) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")
             }
