@@ -19,6 +19,24 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
 - Android app: `./gradlew :androidApp:assembleDebug`
 - iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
 
+### Android API configuration
+
+The Android app uses the production API directly. Set its origin (including scheme and host) with the `loanApiBaseUrl` Gradle property or `LOAN_API_BASE_URL` environment variable. The value must end at the API origin; endpoint paths such as `/api/loans` are appended by the app.
+
+```text
+./gradlew :androidApp:assembleDebug -PloanApiBaseUrl=https://your-api-host/
+```
+
+Release packaging rejects the placeholder API host and any non-HTTPS URL. `API (3).md` documents API routes but does not specify the deployed host, so configure the real host before making a release build.
+
+For local mock-backend testing, run `python main.py` from `androidApp/src/main` with FastAPI and Uvicorn installed. The server listens on port `8000`. Then install the debug app with:
+
+```text
+.\gradlew.bat :androidApp:installDebug -PloanApiBaseUrl=http://10.0.2.2:8000/
+```
+
+`10.0.2.2` reaches the development computer from the Android emulator. On a physical phone, use the computer's LAN IP instead, and make sure the phone can reach port `8000`. The debug manifest alone permits HTTP. The release manifest still blocks cleartext, and release tasks reject HTTP hosts. The mock login is `admin2@gmail.com` / `admin123`.
+
 ### Running tests
 
 Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:

@@ -1,5 +1,6 @@
-package com.example.kotlinmulti.loanmanager.ui.customers
+package com.example.kotlinmulti.loanmanager.ui.loans
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,9 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -48,31 +47,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.kotlinmulti.loanmanager.domain.model.CustomerRecord
-import com.example.kotlinmulti.loanmanager.ui.customers.components.CustomBottomNavigationBar
-import com.example.kotlinmulti.loanmanager.ui.customers.components.CustomerItemRow
-import com.example.kotlinmulti.loanmanager.ui.customers.components.EmptyStateView
-import com.example.kotlinmulti.loanmanager.ui.customers.components.ErrorStateView
-import com.example.kotlinmulti.loanmanager.ui.customers.components.FilterBottomSheet
+import com.example.kotlinmulti.loanmanager.ui.components.CustomBottomNavigationBar
+import com.example.kotlinmulti.loanmanager.ui.components.EmptyStateView
+import com.example.kotlinmulti.loanmanager.ui.components.ErrorStateView
+import com.example.kotlinmulti.loanmanager.ui.components.FilterBottomSheet
+import com.example.kotlinmulti.loanmanager.ui.components.LoanItemRow
+import com.example.kotlinmulti.loanmanager.ui.navigation.LoanRecordStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomersScreen(
+fun LoansScreen(
     navController: NavHostController,
     authToken: String? = null,
-    viewModel: CustomersViewModel = viewModel(
-        factory = CustomersViewModel.provideFactory(authToken = authToken)
-    )
+    showRepaymentDetails: Boolean = false,
+    viewModel: LoansViewModel = viewModel(
+        factory = LoansViewModel.provideFactory(authToken = authToken)
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
-
-    var selectedRecord by remember { mutableStateOf<CustomerRecord?>(null) }
-
-    LaunchedEffect(selectedRecord?.loanId) {
-        selectedRecord?.loanId?.let(viewModel::fetchRepaymentHistoryForLoan)
-    }
 
     val shouldLoadMore = remember {
         derivedStateOf {
@@ -82,13 +76,6 @@ fun CustomersScreen(
         }
     }
 
-    if (selectedRecord != null) {
-        CustomerDetailScreen(
-            record = selectedRecord!!,
-            repaymentHistory = uiState.activeRepayments,
-            onBackClick = { selectedRecord = null }
-        )
-    } else {
         LaunchedEffect(shouldLoadMore.value) {
             if (shouldLoadMore.value) {
                 viewModel.loadNextPage()
@@ -101,13 +88,13 @@ fun CustomersScreen(
                     title = {
                         Column {
                             Text(
-                                "Sayar Shin Ltd",
+                                "Loan Manager",
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Customers Directory",
+                                if (showRepaymentDetails) "Customers Directory" else "Loans Directory",
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                                 fontSize = 14.sp
                             )
@@ -154,7 +141,7 @@ fun CustomersScreen(
                         onValueChange = viewModel::onSearchQueryChanged,
                         placeholder = {
                             Text(
-                                "Search customers...",
+                                if (showRepaymentDetails) "Search customers..." else "Search loans...",
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -218,7 +205,7 @@ fun CustomersScreen(
                         fontSize = 14.sp
                     )
                     Text(
-                        "${uiState.records.size}",
+                        "${uiState.totalRecords}",
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
@@ -257,10 +244,16 @@ fun CustomersScreen(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(uiState.records, key = { it.id }) { record ->
-                                    CustomerItemRow(
+                                    LoanItemRow(
                                         record = record,
+                                        showPaidLabel = showRepaymentDetails,
                                         onItemClick = { clickedItem ->
-                                            selectedRecord = clickedItem
+                                            if (showRepaymentDetails) {
+                                                LoanRecordStore.repaymentRecord = clickedItem
+                                                navController.navigate("repaymentDetails/${Uri.encode(clickedItem.loanId)}")
+                                            } else {
+                                                navController.navigate("loanDetails/${Uri.encode(clickedItem.loanId)}")
+                                            }
                                         }
                                         )
                                     HorizontalDivider(
@@ -302,5 +295,4 @@ fun CustomersScreen(
                 )
             }
         }
-    }
 }

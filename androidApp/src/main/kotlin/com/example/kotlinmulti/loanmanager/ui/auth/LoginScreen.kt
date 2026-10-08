@@ -1,10 +1,8 @@
 package com.example.kotlinmulti.loanmanager.ui.auth
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -52,7 +50,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kotlinmulti.loanmanager.data.remote.CustomerApiService
+import com.example.kotlinmulti.loanmanager.data.auth.SecureTokenStore
+import com.example.kotlinmulti.loanmanager.data.remote.LoanApiService
 import com.example.kotlinmulti.loanmanager.data.remote.LoginRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,6 +70,8 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val tokenStore = remember(context) { SecureTokenStore(context) }
 
     val primaryPurple = Color(0xFF6342A3)
     val lightBackgroundColor = Color(0xFFF6F7F9)
@@ -111,21 +112,12 @@ fun LoginScreen(
 
                 // Title & Subtitle
                 Text(
-                    text = "Sayar Shin Company Ltd.",
+                    text = "Loan Manager",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = textPrimaryColor,
                     textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Sayar Shin and Pupils",
-                    fontSize = 14.sp,
-                    color = textMutedColor,
-                    textAlign = TextAlign.Center
-                )
+                )n
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -232,41 +224,23 @@ fun LoginScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Remember Me & Forgot Password Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = rememberMe,
-                                    onCheckedChange = { rememberMe = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = primaryPurple,
-                                        uncheckedColor = Color(0xFFDCDCDC)
-                                    )
+                            Checkbox(
+                                checked = rememberMe,
+                                onCheckedChange = { rememberMe = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = primaryPurple,
+                                    uncheckedColor = Color(0xFFDCDCDC)
                                 )
-                                Text(
-                                    text = "Remember me",
-                                    fontSize = 14.sp,
-                                    color = textPrimaryColor
-                                )
-                            }
-
-                            TextButton(
-                                onClick = { /* Handle forgot password click */ },
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    text = "Forgot password?",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = primaryPurple
-                                )
-                            }
+                            )
+                            Text(
+                                text = "Remember me",
+                                fontSize = 14.sp,
+                                color = textPrimaryColor
+                            )
                         }
 
                         errorMessage?.let { message ->
@@ -292,9 +266,14 @@ fun LoginScreen(
                                         errorMessage = null
                                         try {
                                             val response = withContext(Dispatchers.IO) {
-                                                CustomerApiService.create().login(
+                                                val result = LoanApiService.instance.login(
                                                     LoginRequest(normalizedEmail, password)
                                                 )
+                                                val token = result.token
+                                                if (result.status.equals("success", ignoreCase = true) && !token.isNullOrBlank()) {
+                                                    if (rememberMe) tokenStore.write(token) else tokenStore.clear()
+                                                }
+                                                result
                                             }
                                             val token = response.token
                                             if (response.status.equals("success", ignoreCase = true) && !token.isNullOrBlank()) {

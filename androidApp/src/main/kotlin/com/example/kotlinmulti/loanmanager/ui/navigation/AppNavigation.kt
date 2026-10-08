@@ -1,32 +1,46 @@
 package com.example.kotlinmulti.loanmanager.ui.navigation
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.kotlinmulti.loanmanager.ui.customers.CustomersScreen
 import com.example.kotlinmulti.loanmanager.ui.auth.LoginScreen
+import com.example.kotlinmulti.loanmanager.ui.loans.LoansScreen
+import com.example.kotlinmulti.loanmanager.ui.repayments.RepaymentsScreen
+import com.example.kotlinmulti.loanmanager.ui.profile.ProfileScreen
+import com.example.kotlinmulti.loanmanager.ui.auth.AuthSessionViewModel
+import com.example.kotlinmulti.loanmanager.ui.loans.LoanDetailsRoute
+import com.example.kotlinmulti.loanmanager.ui.repayments.RepaymentDetailsScreen
+import com.example.kotlinmulti.loanmanager.ui.repayments.RepaymentViewModel
 
 @Composable
 fun AppNavigation() {
 
     val navController = rememberNavController()
-    var authToken by remember { mutableStateOf<String?>(null) }
+    val session: AuthSessionViewModel = viewModel()
+    val authToken by session.token.collectAsStateWithLifecycle()
 
     NavHost(
         navController = navController,
-        startDestination = "login"
+        startDestination = if (authToken == null) "login" else "loans"
     ) {
 
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { token ->
-                    authToken = token
+                    session.setSignedIn(token)
                     navController.navigate("loans") {
                         popUpTo("login") { inclusive = true }
                         launchSingleTop = true
@@ -36,21 +50,77 @@ fun AppNavigation() {
         }
 
         composable("loans") {
-            CustomersScreen(
+            LoansScreen(
                 navController = navController,
                 authToken = authToken
             )
         }
 
         composable("repayments") {
-            CustomersScreen(
+            RepaymentsScreen(
                 navController = navController,
                 authToken = authToken
             )
         }
 
+        composable(
+            route = "loanDetails/{loanId}",
+            arguments = listOf(navArgument("loanId") { type = NavType.StringType })
+        ) { entry ->
+            LoanDetailsRoute(
+                loanId = entry.arguments?.getString("loanId").orEmpty(),
+                authToken = authToken,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "repaymentDetails/{loanId}",
+            arguments = listOf(navArgument("loanId") { type = NavType.StringType })
+        ) { entry ->
+            val record = remember(entry.id) { LoanRecordStore.repaymentRecord }
+            val repaymentViewModel: RepaymentViewModel = viewModel(
+                key = "repaymentDetails-${entry.arguments?.getString("loanId")}",
+                factory = RepaymentViewModel.provideFactory(authToken)
+            )
+            val repaymentState by repaymentViewModel.uiState.collectAsStateWithLifecycle()
+            val loanId = entry.arguments?.getString("loanId").orEmpty()
+            LaunchedEffect(loanId) { repaymentViewModel.fetchForLoan(loanId) }
+            if (record == null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                RepaymentDetailsScreen(
+                    record = record,
+                    repaymentHistory = repaymentState.records,
+                    isLoading = repaymentState.isLoading,
+                    errorMessage = repaymentState.errorMessage,
+                    onRetry = repaymentViewModel::retry,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+        }
+
         composable("profile") {
-            Text("Profile")
+            val token = authToken
+            if (token == null) {
+                navController.navigate("login") {
+                    popUpTo("profile") { inclusive = true }
+                    launchSingleTop = true
+                }
+            } else {
+                ProfileScreen(
+                    authToken = token,
+                    onLogout = {
+                        session.signOut()
+                        navController.navigate("login") {
+                            popUpTo("loans") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
         }
     }
 }

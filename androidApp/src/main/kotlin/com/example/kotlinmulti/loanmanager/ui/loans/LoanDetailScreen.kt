@@ -1,6 +1,7 @@
-package com.example.loanmobile.ui.loans
+package com.example.kotlinmulti.loanmanager.ui.loans
 
 import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -63,15 +64,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import com.example.kotlinmulti.loanmanager.data.remote.LoanApiService
+import com.example.kotlinmulti.loanmanager.data.remote.CustomerInfoDto
+import com.example.kotlinmulti.loanmanager.data.remote.LoanDto
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.math.ceil
 
 // ============================================================================
 // 1. ENUMS & DATA MODELS
@@ -108,34 +116,18 @@ enum class LoanType(val apiValue: String, val displayValue: String) {
 }
 
 enum class LoanStatus(val apiValue: String, val displayValue: String) {
+    ACTIVE("ACTIVE", "Active"),
     PENDING("PENDING", "Pending"),
     PAID("PAID", "Paid"),
     OVERDUE("OVERDUE", "Overdue");
 
     companion object {
         fun fromApi(value: String): LoanStatus = when (value.uppercase()) {
+            "ACTIVE" -> ACTIVE
             "PENDING" -> PENDING
             "PAID" -> PAID
             "OVERDUE" -> OVERDUE
             else -> throw IllegalArgumentException("Invalid loan status value: $value")
-        }
-    }
-}
-
-data class Pagination(
-    val total: Int,
-    val page: Int,
-    val limit: Int,
-    val totalPages: Int
-) {
-    companion object {
-        fun fromJson(json: Map<String, Any?>): Pagination {
-            return Pagination(
-                total = (json["total"] as Number).toInt(),
-                page = (json["page"] as Number).toInt(),
-                limit = (json["limit"] as Number).toInt(),
-                totalPages = (json["totalPages"] as Number).toInt()
-            )
         }
     }
 }
@@ -237,7 +229,8 @@ data class Loan(
     val customer: Customer = Customer(),
     val group: Group? = null,
     val repayments: List<Repayment> = emptyList(),
-    val summary: Summary = Summary(0, 0, 0)
+    val summary: Summary = Summary(0, 0, 0),
+    val groupMembers: List<Customer> = emptyList()
 ) {
     companion object {
         @Suppress("UNCHECKED_CAST")
@@ -278,168 +271,21 @@ data class Loan(
     }
 }
 
-data class LoansResponse(
-    val success: Boolean,
-    val message: String,
-    val data: List<Loan>,
-    val pagination: Pagination
-) {
-    companion object {
-        @Suppress("UNCHECKED_CAST")
-        fun fromJson(json: Map<String, Any?>): LoansResponse {
-            val dataList = (json["data"] as? List<Map<String, Any?>>) ?: emptyList()
-            return LoansResponse(
-                success = json["success"] as Boolean,
-                message = json["message"] as String,
-                data = dataList.map { Loan.fromJson(it) },
-                pagination = Pagination.fromJson((json["pagination"] as? Map<String, Any?>) ?: emptyMap())
-            )
-        }
-    }
-}
-
-data class LoanFilter(
-    val loanType: LoanType? = null,
-    val loanStatus: LoanStatus? = null,
-    val search: String? = null
-) {
-    fun toQueryParameters(): Map<String, Any> {
-        val params = mutableMapOf<String, Any>()
-        loanType?.let { params["loanType"] = it.apiValue }
-        loanStatus?.let { params["status"] = it.apiValue }
-        if (!search.isNullOrEmpty()) {
-            params["search"] = search
-        }
-        return params
-    }
-}
-
-// ============================================================================
-// 2. NETWORK SERVICE LAYER
-// ============================================================================
-
-data class ApiResponse(val data: Map<String, Any?>)
-
-interface ApiClient {
-    suspend fun request(
-        path: String,
-        method: String,
-        queryParameters: Map<String, Any>
-    ): ApiResponse
-}
-
-object DummyLoansData {
-    val dummyLoansResponse: Map<String, Any?> = mapOf(
-        "success" to true,
-        "message" to "Dummy loans fetched",
-        "data" to listOf<Map<String, Any?>>(),
-        "pagination" to mapOf(
-            "total" to 0,
-            "page" to 1,
-            "limit" to 20,
-            "totalPages" to 1
-        )
-    )
-}
-
-class LoansService(
-    private val apiClient: ApiClient
-) {
-    companion object {
-        var USE_DUMMY_DATA = false
-    }
-
-    suspend fun fetchLoans(
-        filter: LoanFilter,
-        page: Int = 1,
-        limit: Int = 20
-    ): LoansResponse {
-        if (USE_DUMMY_DATA) {
-            delay(500)
-
-            @Suppress("UNCHECKED_CAST")
-            val allLoans = (DummyLoansData.dummyLoansResponse["data"] as? List<Map<String, Any?>>)
-                ?.map { it.toMap() } ?: emptyList()
-
-            var filtered = allLoans
-
-            val typeValue = filter.loanType?.apiValue
-            if (!typeValue.isNullOrEmpty()) {
-                filtered = filtered.filter { it["loanType"] == typeValue }
-            }
-
-            val statusValue = filter.loanStatus?.apiValue
-            if (!statusValue.isNullOrEmpty()) {
-                filtered = filtered.filter { it["status"] == statusValue }
-            }
-
-            val q = filter.search?.trim()?.lowercase() ?: ""
-            if (q.isNotEmpty()) {
-                filtered = filtered.filter { l ->
-                    @Suppress("UNCHECKED_CAST")
-                    val customer = l["Customer"] as? Map<String, Any?>
-                    val name = (customer?.get("name") as? String ?: "").lowercase()
-                    val nrc = (customer?.get("nationalId") as? String ?: "").lowercase()
-                    val loanNo = (l["loanNumber"] as? String ?: "").lowercase()
-                    val loanId = (l["loanIdNo"] as? String ?: "").lowercase()
-
-                    name.contains(q) || nrc.contains(q) || loanNo.contains(q) || loanId.contains(q)
-                }
-            }
-
-            val start = (page - 1) * limit
-            val end = (start + limit).coerceAtMost(filtered.size)
-            val paged = if (start >= filtered.size) emptyList() else filtered.subList(start, end)
-
-            val totalPages = if (limit > 0) {
-                ceil(filtered.size.toDouble() / limit).toInt().coerceIn(1, 999)
-            } else 1
-
-            val dummyResponse = mapOf(
-                "success" to true,
-                "message" to "Dummy loans fetched",
-                "data" to paged,
-                "pagination" to mapOf(
-                    "total" to filtered.size,
-                    "page" to page,
-                    "limit" to limit,
-                    "totalPages" to totalPages
-                )
-            )
-
-            return LoansResponse.fromJson(dummyResponse)
-        }
-
-        val queryParameters = filter.toQueryParameters().toMutableMap().apply {
-            put("page", page)
-            put("limit", limit)
-        }
-
-        val response = apiClient.request(
-            path = "/api/loans",
-            method = "GET",
-            queryParameters = queryParameters
-        )
-
-        return LoansResponse.fromJson(response.data)
-    }
-}
-
-// ============================================================================
 // 3. MAIN CONNECTED COMPOSABLE (ENTRY POINT)
 // ============================================================================
 
 @Composable
 fun ConnectedLoanDetailsScreen(
     loanId: String,
-    loansService: LoansService,
+    authToken: String?,
     onBackClick: () -> Unit = {},
     onMemberClick: (Customer) -> Unit = {},
-    onDownloadClick: () -> Unit = {}
+    onDownloadClick: (Loan) -> Unit = {}
 ) {
-    var loan by remember { mutableStateOf<Loan?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var loan by remember(loanId) { mutableStateOf<Loan?>(null) }
+    var isLoading by remember(loanId) { mutableStateOf(true) }
+    var errorMessage by remember(loanId) { mutableStateOf<String?>(null) }
+    var selectedMember by remember { mutableStateOf<Customer?>(null) }
     val scope = rememberCoroutineScope()
 
     fun loadData() {
@@ -447,17 +293,16 @@ fun ConnectedLoanDetailsScreen(
             isLoading = true
             errorMessage = null
             try {
-                val response = loansService.fetchLoans(
-                    filter = LoanFilter(search = loanId),
-                    page = 1,
-                    limit = 10
-                )
-                loan = response.data.firstOrNull { it.id == loanId || it.loanNumber == loanId }
-                    ?: response.data.firstOrNull()
-
-                if (loan == null) {
-                    errorMessage = "Loan not found."
+                val response = withContext(Dispatchers.IO) {
+                    LoanApiService.instance.getLoanDetails(
+                        loanId = loanId,
+                        token = authToken?.let { "Bearer $it" }
+                    )
                 }
+                loan = response.data?.toDetailLoan()
+                if (loan == null) errorMessage = response.message ?: "Loan not found."
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errorMessage = e.localizedMessage ?: "Failed to fetch loan details."
             } finally {
@@ -466,47 +311,106 @@ fun ConnectedLoanDetailsScreen(
         }
     }
 
-    LaunchedEffect(loanId) {
-        loadData()
+    LaunchedEffect(loanId) { loadData() }
+
+    when {
+        isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
+        errorMessage != null -> Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+        ) {
+            Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { loadData() }) { Text("Retry") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onBackClick) { Text("Back") }
+        }
+        loan != null -> LoanDetailsScreen(
+            loan = loan!!,
+            onBackClick = onBackClick,
+            onMemberClick = { member ->
+                selectedMember = member
+                onMemberClick(member)
+            },
+            onDownloadClick = { onDownloadClick(loan!!) }
+        )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when {
-            isLoading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            errorMessage != null -> {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { loadData() }) {
-                        Text("Retry")
-                    }
+    selectedMember?.let { member ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { selectedMember = null },
+            title = { Text(member.name) },
+            text = {
+                Column {
+                    InfoRow("NRC Number", member.nationalId.ifBlank { "-" })
+                    InfoRow("Phone Number", member.phone.ifBlank { "-" })
+                    InfoRow("Father Name", member.fatherName.ifBlank { "-" })
+                    InfoRow("Work", member.work.ifBlank { "-" })
+                    InfoRow("Address", member.address.ifBlank { "-" })
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { selectedMember = null }) {
+                    Text("Close")
                 }
             }
-            loan != null -> {
-                LoanDetailsScreen(
-                    loan = loan!!,
-                    onBackClick = onBackClick,
-                    onMemberClick = onMemberClick,
-                    onDownloadClick = onDownloadClick
-                )
-            }
-        }
+        )
     }
 }
+
+private fun LoanDto.toDetailLoan(): Loan {
+    val borrower = customer?.toDetailCustomer() ?: Customer()
+    val type = runCatching { LoanType.fromApi(loanType ?: "INDIVIDUAL") }
+        .getOrDefault(LoanType.INDIVIDUAL)
+    val parsedStatus = runCatching { LoanStatus.fromApi(status ?: "PENDING") }
+        .getOrDefault(LoanStatus.PENDING)
+    return Loan(
+        id = id,
+        loanNumber = loanNumber.orEmpty(),
+        loanIdNo = loanIdNo.orEmpty(),
+        branch = branch.orEmpty(),
+        loanCreatedAt = parseIsoDate(loanCreatedAt ?: createdAt.orEmpty()),
+        loanType = type,
+        customerId = customerId ?: borrower.id,
+        groupId = groupId,
+        businessLicense = businessLicence,
+        colateralName = collateralName,
+        colateralImage = collateralImage,
+        requestedAmount = requestedAmount ?: "0",
+        interestRate = interestRate ?: "0",
+        durationMonths = durationMonths ?: 0,
+        status = parsedStatus,
+        createdAt = parseIsoDate(createdAt ?: loanCreatedAt.orEmpty()),
+        updatedAt = parseIsoDate(updatedAt ?: createdAt ?: loanCreatedAt.orEmpty()),
+        customer = borrower,
+        group = group?.let { Group(it.id, it.name) },
+        repayments = repayments.orEmpty().map { Repayment(it.amountPaid?.toString() ?: "0") },
+        summary = Summary(
+            totalAmount = summary?.totalAmountToPay?.toInt() ?: 0,
+            totalPaid = summary?.totalPaid?.toInt() ?: 0,
+            remainingBalance = summary?.remainingBalance?.toInt() ?: 0
+        ),
+        groupMembers = groupMembers.orEmpty().mapNotNull { it.customer?.toDetailCustomer() }
+    )
+}
+
+private fun CustomerInfoDto.toDetailCustomer() = Customer(
+    id = id,
+    name = name,
+    phone = phone.orEmpty(),
+    nationalId = nationalId.orEmpty(),
+    fatherName = fatherName.orEmpty(),
+    spouseName = spouseName,
+    work = work.orEmpty(),
+    address = address.orEmpty(),
+    frontNRCUrl = frontNRCUrl.orEmpty(),
+    backNRCUrl = backNRCUrl.orEmpty(),
+    frontHouseholdListUrl = frontHouseholdListUrl.orEmpty(),
+    backHouseholdListUrl = backHouseholdListUrl.orEmpty()
+)
 
 // ============================================================================
 // 4. LOAN DETAILS SCREEN UI
@@ -520,6 +424,8 @@ fun LoanDetailsScreen(
     onMemberClick: (Customer) -> Unit = {},
     onDownloadClick: () -> Unit = {}
 ) {
+    BackHandler(onBack = onBackClick)
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         topBar = {
@@ -606,6 +512,7 @@ fun BorrowerCard(loan: Loan) {
         InfoRow(label = "NRC Number", value = loan.customer.nationalId)
         InfoRow(label = "Phone Number", value = loan.customer.phone, showPhoneIcon = true)
         InfoRow(label = "Address", value = loan.customer.address)
+        InfoRow(label = "Loan Status", value = loan.status.displayValue)
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -634,7 +541,7 @@ fun GroupIdentificationCard(loan: Loan) {
         icon = Icons.Outlined.Groups,
         trailing = {
             AppBadge(
-                label = "Active • 5 Members",
+                label = "${loan.status.displayValue} • ${loan.groupMembers.size} Members",
                 backgroundColor = Color(0xFFE8F5E9),
                 contentColor = Color(0xFF2E7D32)
             )
@@ -648,7 +555,7 @@ fun GroupIdentificationCard(loan: Loan) {
         Spacer(modifier = Modifier.height(12.dp))
         InfoRow(
             label = "Group Name",
-            value = loan.group?.name ?: "Thitsar Solidarity Group"
+            value = loan.group?.name ?: "-"
         )
         InfoRow(label = "Designated Leader", value = loan.customer.name)
         InfoRow(label = "Leader NRC Number", value = loan.customer.nationalId)
@@ -662,8 +569,9 @@ fun LoanRepaymentCard(loan: Loan) {
     val rate = loan.interestRate.toDoubleOrNull() ?: 0.0
     val duration = loan.durationMonths
 
-    val totalInterest = amount * (rate / 100.0) * duration
-    val totalRepayable = amount + totalInterest
+    val totalRepayable = loan.summary.totalAmount.takeIf { it > 0 }?.toDouble()
+        ?: (amount + amount * (rate / 100.0) * duration)
+    val totalInterest = (totalRepayable - amount).coerceAtLeast(0.0)
     val monthlyInstallment = if (duration > 0) totalRepayable / duration else 0.0
 
     val disbursedDate = loan.loanCreatedAt
@@ -754,7 +662,7 @@ fun BusinessVerificationCard(loan: Loan) {
     ) {
         InfoRow(label = "Business Name", value = loan.customer.name)
         InfoRow(label = "Business License No", value = loan.businessLicense ?: "-")
-        InfoRow(label = "Business Category", value = "Retail / Wholesale Trading")
+        InfoRow(label = "Business Category", value = loan.customer.work.ifBlank { "-" })
 
         Spacer(modifier = Modifier.height(14.dp))
         SectionLabel(text = "LICENSE CERTIFICATION DOCUMENTS")
@@ -762,15 +670,9 @@ fun BusinessVerificationCard(loan: Loan) {
 
         Row(modifier = Modifier.fillMaxWidth()) {
             DocumentBox(
-                label = "Front - img",
-                url = loan.colateralImage ?: "",
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            DocumentBox(
-                label = "Back - img",
-                url = loan.colateralImage ?: "",
-                modifier = Modifier.weight(1f)
+                label = "Business licence document",
+                url = loan.businessLicense ?: "",
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -785,7 +687,7 @@ fun CollateralCard(loan: Loan) {
         SectionLabel(text = "COLLATERAL TYPE")
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = loan.colateralName ?: "Gold Jewelry & Household Title Deed",
+            text = loan.colateralName?.takeIf { it.isNotBlank() } ?: "-",
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
         )
@@ -795,15 +697,9 @@ fun CollateralCard(loan: Loan) {
 
         Row(modifier = Modifier.fillMaxWidth()) {
             DocumentBox(
-                label = "Front - img",
+                label = "Collateral document",
                 url = loan.colateralImage ?: "",
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            DocumentBox(
-                label = "Back - img",
-                url = loan.colateralImage ?: "",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -814,63 +710,26 @@ fun MembersListCard(
     loan: Loan,
     onMemberClick: (Customer) -> Unit
 ) {
-    val members = listOf(
-        loan.customer,
-        Customer(
-            id = "dummy-002",
-            name = "U Myint Soe",
-            phone = "09-770112233",
-            nationalId = "09/KAKATA(N)001234",
-            fatherName = "U Aye Myint",
-            spouseName = "Daw Mya Mya",
-            work = "Farmer",
-            address = "No. 22, Bogyoke Road, Magway"
-        ),
-        Customer(
-            id = "dummy-003",
-            name = "Daw San San Nu",
-            phone = "09-770223344",
-            nationalId = "09/KAKATA(N)002345",
-            fatherName = "U Hla Myint",
-            spouseName = "U Myint Oo",
-            work = "Shop Owner",
-            address = "No. 45, Cherry Street, Magway"
-        ),
-        Customer(
-            id = "dummy-004",
-            name = "Daw Aye Aye Thin",
-            phone = "09-770334455",
-            nationalId = "09/KAPATA(N)003456",
-            fatherName = "U Win Maung",
-            spouseName = "U Thein Zaw",
-            work = "Tailor",
-            address = "No. 78, Thitsar Street, Magway"
-        ),
-        Customer(
-            id = "dummy-005",
-            name = "U Zaw Min Lwin",
-            phone = "09-770445566",
-            nationalId = "09/KAPATA(N)004567",
-            fatherName = "U Kyaw San",
-            spouseName = "Daw Hla Hla",
-            work = "Driver",
-            address = "No. 90, Aung Mingalar, Magway"
-        )
-    )
+    val members = loan.groupMembers
 
     DetailCard(
         title = "Members List",
         icon = Icons.Outlined.Group
     ) {
-        members.forEachIndexed { index, customer ->
+        if (members.isEmpty()) {
+            Text(
+                text = "No group member details are available.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        members.forEach { customer ->
             MemberRow(
                 customer = customer,
-                isLeader = index == 0,
+                isLeader = customer.id == loan.customerId,
                 onClick = { onMemberClick(customer) }
             )
-            if (index < members.size - 1) {
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
@@ -1052,8 +911,20 @@ fun DocumentBox(
     url: String,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val documentUrl = when {
+        url.isBlank() -> null
+        url.startsWith("http://") || url.startsWith("https://") -> url
+        else -> LoanApiService.BASE_URL.trimEnd('/') + "/" + url.trimStart('/')
+    }
     Surface(
-        modifier = modifier,
+        modifier = modifier.clickable(enabled = documentUrl != null) {
+            documentUrl?.let { target ->
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                }
+            }
+        },
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
@@ -1070,7 +941,7 @@ fun DocumentBox(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "IMG",
+                text = if (documentUrl == null) "Unavailable" else "Tap to open",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.outline

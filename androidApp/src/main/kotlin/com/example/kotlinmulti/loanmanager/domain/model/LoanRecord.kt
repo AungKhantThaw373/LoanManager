@@ -1,6 +1,6 @@
 package com.example.kotlinmulti.loanmanager.domain.model
 
-data class CustomerRecord(
+data class LoanRecord(
     val loanId: String,
     val id: String,
     val date: String,
@@ -11,6 +11,11 @@ data class CustomerRecord(
     val remainingBalance: String,
     val type: String,
     val status: String
+)
+
+data class LoanPage(
+    val records: List<LoanRecord>,
+    val totalRecords: Int
 )
 
 data class RepaymentRecord(

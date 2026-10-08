@@ -1,4 +1,4 @@
-package com.example.kotlinmulti.loanmanager.ui.customers.components
+package com.example.kotlinmulti.loanmanager.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -45,146 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kotlinmulti.loanmanager.domain.model.CustomerRecord
-
-@Composable
-fun CustomerItemRow(record: CustomerRecord,
-                    onItemClick:(CustomerRecord)-> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {onItemClick(record) }
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                record.id,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                record.date,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    record.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    record.amount,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Details",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun EmptyStateView(onResetFilters: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Info,
-            contentDescription = "No Results",
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No Customers Found",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "No customer records match your filter criteria.",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onResetFilters,
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-        ) {
-            Text("Reset Filters", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-fun ErrorStateView(message: String, onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Warning,
-            contentDescription = "Error",
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Backend Connection Error",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = message,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        OutlinedButton(
-            onClick = onRetry,
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Retry", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
+import com.example.kotlinmulti.loanmanager.domain.model.LoanRecord
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -198,7 +59,7 @@ fun FilterBottomSheet(
     var selectedType by remember { mutableStateOf(currentType) }
     var selectedStatus by remember { mutableStateOf(currentStatus) }
 
-    val types = listOf("All", "Group", "Personal", "Business", "Special")
+    val types = listOf("All", "Group", "Individual", "Business", "Special")
     val statuses = listOf("All", "Active", "Pending", "Overdue","Paid")
 
     ModalBottomSheet(
@@ -214,7 +75,7 @@ fun FilterBottomSheet(
                 .padding(bottom = 32.dp)
         ) {
             Text(
-                text = "Customer Type",
+                text = "Loan Type",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Serif,

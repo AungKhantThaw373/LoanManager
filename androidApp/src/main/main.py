@@ -2,6 +2,7 @@ from typing import List, Optional, Dict
 from fastapi import FastAPI, Query, Header
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from pydantic import Field
 import uvicorn
 
 app = FastAPI(
@@ -17,6 +18,15 @@ class CustomerInfo(BaseModel):
     id: str
     name: str
     phone: Optional[str] = None
+    nationalId: Optional[str] = None
+    fatherName: Optional[str] = None
+    spouseName: Optional[str] = None
+    work: Optional[str] = None
+    address: Optional[str] = None
+    frontNRCUrl: Optional[str] = None
+    backNRCUrl: Optional[str] = None
+    frontHouseholdListUrl: Optional[str] = None
+    backHouseholdListUrl: Optional[str] = None
 
 class GroupInfo(BaseModel):
     id: str
@@ -33,12 +43,23 @@ class LoanDto(BaseModel):
     loanIdNo: Optional[str] = None
     branch: Optional[str] = "Magway"
     loanCreatedAt: Optional[str] = None
+    customerId: Optional[str] = None
+    groupId: Optional[str] = None
+    businessLicence: Optional[str] = None
+    collateralName: Optional[str] = None
+    collateralImage: Optional[str] = None
+    interestRate: Optional[str] = "2.5"
+    durationMonths: Optional[int] = 12
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
     loanType: Optional[str] = "INDIVIDUAL"
     requestedAmount: Optional[str] = "0"
     status: Optional[str] = "PENDING"
     Customer: Optional[CustomerInfo] = None
     Group: Optional[GroupInfo] = None
     summary: Optional[LoanSummary] = None
+    repayments: List[dict] = Field(default_factory=list)
+    groupMembers: List[dict] = Field(default_factory=list)
 
 class PaginationInfo(BaseModel):
     total: int
@@ -51,6 +72,11 @@ class LoansApiResponse(BaseModel):
     message: Optional[str] = "Loans fetched successfully"
     data: List[LoanDto]
     pagination: PaginationInfo
+
+class LoanDetailApiResponse(BaseModel):
+    success: bool = True
+    message: str = "Loan fetched successfully"
+    data: LoanDto
 
 class RepaymentHistoryDto(BaseModel):
     id: str
@@ -80,13 +106,15 @@ class LoginResponse(BaseModel):
 MOCK_LOANS: List[LoanDto] = [
     LoanDto(
         id="loan-1", loanNumber="LN-00001", loanIdNo="KM-MGY 00001", loanType="GROUP", status="ACTIVE", requestedAmount="89000000", loanCreatedAt="2026-09-25T00:00:00.000Z",
-        Customer=CustomerInfo(id="c-1", name="Ko Kyaw", phone="0912345678"),
+        customerId="c-1", groupId="g-1", interestRate="2.5", durationMonths=15,
+        Customer=CustomerInfo(id="c-1", name="Ko Kyaw", phone="0912345678", nationalId="9/MAMANA(N)123456", fatherName="U Ba", work="Farmer", address="Magway"),
         Group=GroupInfo(id="g-1", name="Ko Kyaw & Group"),
         summary=LoanSummary(totalAmountToPay=122375000.0, totalPaid=0.0, remainingBalance=122375000.0)
     ),
     LoanDto(
         id="loan-2", loanNumber="LN-00002", loanIdNo="KM-MGY 00002", loanType="BUSINESS", status="PAID", requestedAmount="10000000", loanCreatedAt="2026-09-24T00:00:00.000Z",
-        Customer=CustomerInfo(id="c-2", name="U Kyaw Zin", phone="0923456789"),
+        customerId="c-2", businessLicence="MDY-112483030", interestRate="2.5", durationMonths=10,
+        Customer=CustomerInfo(id="c-2", name="U Kyaw Zin", phone="0923456789", nationalId="8/MAMANA(N)309987", fatherName="U ZawZaw", spouseName="Daw Mama", work="Shop Owner", address="Demon Road, Mandalay", frontNRCUrl="/uploads/c-2-front-nrc.jpg", backNRCUrl="/uploads/c-2-back-nrc.jpg"),
         summary=LoanSummary(totalAmountToPay=12500000.0, totalPaid=12500000.0, remainingBalance=0.0)
     ),
     LoanDto(
@@ -231,6 +259,16 @@ MOCK_REPAYMENTS: Dict[str, List[RepaymentHistoryDto]] = {
     ]
 }
 
+MOCK_GROUP_MEMBERS: Dict[str, List[dict]] = {
+    "loan-1": [
+        {"id": "gm-1", "roleInGroup": "LEADER", "Customer": MOCK_LOANS[0].Customer.dict()},
+        {"id": "gm-2", "roleInGroup": "MEMBER", "Customer": CustomerInfo(id="c-1a", name="U Myint Soe", phone="09770112233", nationalId="09/KAKATA(N)001234", fatherName="U Aye Myint", work="Farmer", address="Bogyoke Road, Magway").dict()},
+        {"id": "gm-3", "roleInGroup": "MEMBER", "Customer": CustomerInfo(id="c-1b", name="Daw San San Nu", phone="09770223344", nationalId="09/KAKATA(N)002345", fatherName="U Hla Myint", work="Shop Owner", address="Cherry Street, Magway").dict()},
+        {"id": "gm-4", "roleInGroup": "MEMBER", "Customer": CustomerInfo(id="c-1c", name="Daw Aye Aye Thin", phone="09770334455", nationalId="09/KAPATA(N)003456", fatherName="U Win Maung", work="Tailor", address="Thitsar Street, Magway").dict()},
+        {"id": "gm-5", "roleInGroup": "MEMBER", "Customer": CustomerInfo(id="c-1d", name="U Zaw Min Lwin", phone="09770445566", nationalId="09/KAPATA(N)004567", fatherName="U Kyaw San", work="Driver", address="Aung Mingalar, Magway").dict()}
+    ]
+}
+
 # Demo credentials and token for the local mock server. These match API (3).md.
 DEMO_EMAIL = "admin2@gmail.com"
 DEMO_PASSWORD = "admin123"
@@ -300,6 +338,68 @@ async def get_loans(
             totalPages=total_pages
         )
     )
+
+
+@app.get("/api/loans/{loan_id}", response_model=LoanDetailApiResponse)
+async def get_loan_details(
+    loan_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    loan = next((item for item in MOCK_LOANS if item.id == loan_id), None)
+    if loan is None:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Loan record doesn't exist."}
+        )
+
+    detail = loan.copy(update={
+        "repayments": [item.dict() for item in MOCK_REPAYMENTS.get(loan_id, [])],
+        "groupMembers": MOCK_GROUP_MEMBERS.get(loan_id, [])
+    })
+    return LoanDetailApiResponse(data=detail)
+
+
+@app.get("/api/repayments")
+async def get_repayments(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None)
+):
+    records = []
+    for loan_id, repayments in MOCK_REPAYMENTS.items():
+        loan = next((item for item in MOCK_LOANS if item.id == loan_id), None)
+        if loan is None:
+            continue
+        for repayment in repayments:
+            item = repayment.dict()
+            item["Loan"] = {
+                "id": loan.id,
+                "loanNumber": loan.loanNumber,
+                "status": loan.status,
+                "loanType": loan.loanType,
+                "Customer": loan.Customer.dict() if loan.Customer else None
+            }
+            records.append(item)
+
+    if search:
+        query = search.strip().lower()
+        records = [item for item in records if
+                   query in (item.get("repaymentNo") or "").lower()
+                   or query in (item.get("Loan", {}).get("loanNumber") or "").lower()
+                   or query in (item.get("Loan", {}).get("Customer") or {}).get("name", "").lower()]
+
+    start = (page - 1) * limit
+    return {
+        "success": True,
+        "data": records[start:start + limit],
+        "pagination": {
+            "total": len(records),
+            "page": page,
+            "limit": limit,
+            "totalPages": max(1, (len(records) + limit - 1) // limit)
+        }
+    }
 
 
 # -----------------------------------------------------------------------------

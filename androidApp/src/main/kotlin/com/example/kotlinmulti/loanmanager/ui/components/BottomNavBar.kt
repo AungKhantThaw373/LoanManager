@@ -1,4 +1,4 @@
-package com.example.kotlinmulti.loanmanager.ui.customers.components
+package com.example.kotlinmulti.loanmanager.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -20,9 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.automirrored.outlined.Note
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,20 +45,21 @@ fun CustomBottomNavigationBar(
     onNavigate: (String) -> Unit
 ) {
     val items = listOf(
-        Triple("loans", "Loans", Icons.AutoMirrored.Outlined.MenuBook),
-        Triple("repayments", "Repayments", Icons.AutoMirrored.Outlined.Note),
+        Triple("loans", "Loans", Icons.Outlined.AccountBalanceWallet),
+        Triple("repayments", "Repayments", Icons.AutoMirrored.Outlined.ReceiptLong),
         Triple("profile", "Profile", Icons.Filled.AccountCircle)
     )
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(110.dp)
-            .padding(bottom = 30.dp),
+            .height(100.dp),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {
-        Column {
+        Column(
+            Modifier.padding(bottom = 30.dp)
+        ) {
             // Subtle top border divider matching your color scheme
             HorizontalDivider(
                 thickness = 0.5.dp,
@@ -139,7 +140,7 @@ private fun RowScope.TikTokStyleNavItem(
             contentDescription = label,
             tint = activeColor,
             modifier = Modifier
-                .size(20.dp)
+                .size(25.dp)
                 .scale(iconScale)
         )
 
@@ -148,7 +149,7 @@ private fun RowScope.TikTokStyleNavItem(
         Text(
             text = label,
             color = activeColor,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }

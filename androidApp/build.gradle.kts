@@ -6,6 +6,12 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val configuredLoanApiBaseUrl = providers.gradleProperty("loanApiBaseUrl")
+    .orElse(providers.environmentVariable("LOAN_API_BASE_URL"))
+    .orElse("https://api.example.com/")
+    .get()
+    .let { if (it.endsWith('/')) it else "$it/" }
+
 kotlin {
 
     compilerOptions {
@@ -13,11 +19,9 @@ kotlin {
     }
 }
 dependencies {
-    implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("androidx.navigation:navigation-compose:2.8.8")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
 
 
     // Converter library to handle JSON serialization/deserialization
@@ -51,6 +55,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "LOAN_API_BASE_URL", "\"$configuredLoanApiBaseUrl\"")
     }
     packaging {
         resources {
@@ -72,5 +77,21 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+}
+
+tasks.configureEach {
+    if (name.contains("Release", ignoreCase = true) &&
+        (name.startsWith("assemble") || name.startsWith("bundle"))
+    ) {
+        doFirst {
+            require(configuredLoanApiBaseUrl.startsWith("https://", ignoreCase = true)) {
+                "Release builds require an HTTPS loanApiBaseUrl. Set -PloanApiBaseUrl=https://your-api-host/"
+            }
+            require(!configuredLoanApiBaseUrl.contains("api.example.com", ignoreCase = true)) {
+                "Set the production API host with -PloanApiBaseUrl=https://your-api-host/ before building release."
+            }
+        }
     }
 }
