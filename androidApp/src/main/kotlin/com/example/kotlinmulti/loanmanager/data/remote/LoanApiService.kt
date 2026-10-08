@@ -74,7 +74,7 @@ interface LoanApiService {
     ): RepaymentsApiResponse
 
     companion object {
-        val BASE_URL: String = "api here(eg:0.0.0.0/8000/)" //com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
+        val BASE_URL: String = "http://localhost:3000" //com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
 
         fun create(): LoanApiService {
             val client = OkHttpClient.Builder()

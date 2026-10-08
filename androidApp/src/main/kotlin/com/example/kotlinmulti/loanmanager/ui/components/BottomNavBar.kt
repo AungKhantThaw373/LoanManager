@@ -53,12 +53,12 @@ fun CustomBottomNavigationBar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(100.dp),
+            .height(90.dp),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {
         Column(
-            Modifier.padding(bottom = 30.dp)
+            Modifier.padding(bottom = 8.dp)
         ) {
             // Subtle top border divider matching your color scheme
             HorizontalDivider(
