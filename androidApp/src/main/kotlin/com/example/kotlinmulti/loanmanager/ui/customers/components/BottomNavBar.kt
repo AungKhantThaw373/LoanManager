@@ -53,7 +53,7 @@ fun CustomBottomNavigationBar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(110.dp)
+            .height(80.dp)
             .padding(bottom = 30.dp),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary
