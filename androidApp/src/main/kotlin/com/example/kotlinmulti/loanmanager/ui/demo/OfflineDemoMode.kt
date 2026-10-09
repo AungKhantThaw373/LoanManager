@@ -17,17 +17,45 @@ object OfflineDemoMode {
     const val EMAIL = "demo@offline.local"
     const val PASSWORD = "Preview123!"
     const val TOKEN = "local-offline-preview-session"
+    const val OWNER_EMAIL = "owner@offline.local"
+    const val OWNER_PASSWORD = "OwnerPreview123!"
+    const val OWNER_TOKEN = "local-offline-owner-preview-session"
 
-    fun isSession(token: String?): Boolean = token == TOKEN
+    fun isSession(token: String?): Boolean = token == TOKEN || token == OWNER_TOKEN
 
-    fun accepts(email: String, password: String): Boolean =
-        email.trim().equals(EMAIL, ignoreCase = true) && password == PASSWORD
+    fun tokenForCredentials(email: String, password: String): String? = when {
+        email.trim().equals(EMAIL, ignoreCase = true) && password == PASSWORD -> TOKEN
+        email.trim().equals(OWNER_EMAIL, ignoreCase = true) && password == OWNER_PASSWORD -> OWNER_TOKEN
+        else -> null
+    }
+
+    fun roleForToken(token: String?): String? = when (token) {
+        TOKEN -> "STAFF"
+        OWNER_TOKEN -> "OWNER"
+        else -> null
+    }
+
+    fun userForToken(token: String?): CurrentUserDto = if (token == OWNER_TOKEN) owner else user
 
     val user = CurrentUserDto(
         id = "offline-demo-user",
-        name = "Sayar Shin Demo",
+        name = "Demo Staff",
         email = EMAIL,
-        role = "MANAGER"
+        role = "STAFF"
+    )
+
+    val owner = CurrentUserDto(
+        id = "offline-demo-owner",
+        name = "Demo Owner",
+        email = OWNER_EMAIL,
+        role = "OWNER"
+    )
+
+    val users: List<com.example.kotlinmulti.loanmanager.data.remote.UserDto> = listOf(
+        com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-owner", "Demo Owner", OWNER_EMAIL, "OWNER", createdAt = "2026-01-12T09:30:00Z"),
+        com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-manager", "May Thazin", "may.manager@offline.local", "MANAGER", createdAt = "2026-02-03T08:15:00Z"),
+        com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-staff-1", "Aung Kyaw", "aung.staff@offline.local", "STAFF", createdAt = "2026-03-17T11:20:00Z"),
+        com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-staff-2", "Hnin Ei", "hnin.staff@offline.local", "STAFF", createdAt = "2026-04-02T06:40:00Z")
     )
 
     val loans: List<LoanRecord> = listOf(

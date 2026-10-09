@@ -28,6 +28,20 @@ interface LoanApiService {
     @GET("api/users/me")
     suspend fun getCurrentUser(@Header("Authorization") token: String): CurrentUserApiResponse
 
+    @GET("api/users")
+    suspend fun getUsers(
+        @Header("Authorization") token: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("search") search: String? = null
+    ): UsersApiResponse
+
+    @GET("api/users/{userId}")
+    suspend fun getUser(
+        @Path("userId") userId: String,
+        @Header("Authorization") token: String
+    ): UserDetailApiResponse
+
     @Multipart
     @PATCH("api/users/me")
     suspend fun updateCurrentUser(
@@ -74,7 +88,7 @@ interface LoanApiService {
     ): RepaymentsApiResponse
 
     companion object {
-        val BASE_URL: String = "api here(eg:0.0.0.0/8000/)" //com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
+        val BASE_URL: String = com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
 
         fun create(): LoanApiService {
             val client = OkHttpClient.Builder()
@@ -117,6 +131,37 @@ data class CurrentUserDto(
     val email: String,
     val role: String,
     val photoUrl: String? = null
+)
+
+data class UsersApiResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val users: List<UserDto>? = null,
+    val meta: UsersMetaDto? = null
+)
+
+data class UserDetailApiResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val user: UserDto? = null
+)
+
+data class UserDto(
+    val id: String,
+    val name: String,
+    val email: String,
+    val role: String,
+    val photoUrl: String? = null,
+    val isDeleted: Boolean? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+data class UsersMetaDto(
+    val totalUserCount: Int? = null,
+    val totalPages: Int? = null,
+    val currentPage: Int? = null,
+    val limit: Int? = null
 )
 
 data class ChangePasswordRequest(

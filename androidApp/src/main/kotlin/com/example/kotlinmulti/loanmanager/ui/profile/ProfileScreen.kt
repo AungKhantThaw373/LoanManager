@@ -89,6 +89,7 @@ private val AllowedPhotoTypes = setOf("image/jpeg", "image/jpg", "image/png", "i
 @Composable
 fun ProfileScreen(
     authToken: String,
+    showAdmin: Boolean = false,
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit
 ) {
@@ -105,7 +106,7 @@ fun ProfileScreen(
 
     suspend fun reloadProfile() {
         if (offlinePreview) {
-            user = OfflineDemoMode.user
+            user = OfflineDemoMode.userForToken(authToken)
             error = null
             loading = false
             return
@@ -196,7 +197,7 @@ fun ProfileScreen(
             )
         },
         bottomBar = {
-            CustomBottomNavigationBar(currentRoute = "profile", onNavigate = onNavigate)
+            CustomBottomNavigationBar(currentRoute = "profile", showAdmin = showAdmin, onNavigate = onNavigate)
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { insets ->

@@ -60,6 +60,7 @@ fun LoansScreen(
     navController: NavHostController,
     authToken: String? = null,
     showRepaymentDetails: Boolean = false,
+    showAdmin: Boolean = false,
     viewModel: LoansViewModel = viewModel(
         factory = LoansViewModel.provideFactory(authToken = authToken)
     ),
@@ -112,6 +113,7 @@ fun LoansScreen(
 
                 CustomBottomNavigationBar(
                     currentRoute = currentRoute ?: "loans",
+                    showAdmin = showAdmin,
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo("loans") {

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,13 +43,17 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun CustomBottomNavigationBar(
     currentRoute: String,
+    showAdmin: Boolean = false,
     onNavigate: (String) -> Unit
 ) {
-    val items = listOf(
+    val items = buildList {
+        addAll(listOf(
         Triple("loans", "Loans", Icons.Outlined.AccountBalanceWallet),
-        Triple("repayments", "Repayments", Icons.AutoMirrored.Outlined.ReceiptLong),
-        Triple("profile", "Profile", Icons.Filled.AccountCircle)
-    )
+        Triple("repayments", "Repayments", Icons.AutoMirrored.Outlined.ReceiptLong)
+        ))
+        if (showAdmin) add(Triple("admin", "Admin", Icons.Filled.AdminPanelSettings))
+        add(Triple("profile", "Profile", Icons.Filled.AccountCircle))
+    }
 
     Surface(
         modifier = Modifier

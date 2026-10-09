@@ -8,11 +8,13 @@ import com.example.kotlinmulti.loanmanager.ui.loans.LoansScreen
 @Composable
 fun RepaymentsScreen(
     navController: NavHostController,
-    authToken: String?
+    authToken: String?,
+    showAdmin: Boolean = false
 ) {
     LoansScreen(
         navController = navController,
         authToken = authToken,
-        showRepaymentDetails = true
+        showRepaymentDetails = true,
+        showAdmin = showAdmin
     )
 }

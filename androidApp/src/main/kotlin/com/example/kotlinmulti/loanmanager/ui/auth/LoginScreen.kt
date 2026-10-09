@@ -147,7 +147,7 @@ fun LoginScreen(
                         if (BuildConfig.DEBUG) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Offline preview (debug only): ${OfflineDemoMode.EMAIL} / ${OfflineDemoMode.PASSWORD}",
+                                text = "Offline staff: ${OfflineDemoMode.EMAIL} / ${OfflineDemoMode.PASSWORD}\nOffline owner: ${OfflineDemoMode.OWNER_EMAIL} / ${OfflineDemoMode.OWNER_PASSWORD}",
                                 color = textMutedColor,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
@@ -278,9 +278,12 @@ fun LoginScreen(
                                         isLoading = true
                                         errorMessage = null
                                         try {
-                                            if (BuildConfig.DEBUG && OfflineDemoMode.accepts(normalizedEmail, password)) {
-                                                if (rememberMe) tokenStore.write(OfflineDemoMode.TOKEN) else tokenStore.clear()
-                                                onLoginSuccess(OfflineDemoMode.TOKEN)
+                                            val offlineToken = if (BuildConfig.DEBUG) {
+                                                OfflineDemoMode.tokenForCredentials(normalizedEmail, password)
+                                            } else null
+                                            if (offlineToken != null) {
+                                                if (rememberMe) tokenStore.write(offlineToken) else tokenStore.clear()
+                                                onLoginSuccess(offlineToken)
                                                 return@launch
                                             }
                                             val response = withContext(Dispatchers.IO) {

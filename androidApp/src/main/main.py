@@ -273,13 +273,23 @@ MOCK_GROUP_MEMBERS: Dict[str, List[dict]] = {
 DEMO_EMAIL = "admin2@gmail.com"
 DEMO_PASSWORD = "admin123"
 DEMO_TOKEN = "mock-km-microfinance-token"
-MOCK_PROFILE = {
-    "id": "8da06277-9676-4973-877d-bf6bdb48a9d2",
-    "name": "Admin 2",
-    "email": DEMO_EMAIL,
-    "role": "MANAGER",
-    "photoUrl": None
-}
+OWNER_DEMO_EMAIL = "owner@demo.local"
+OWNER_DEMO_PASSWORD = "Owner123!"
+OWNER_DEMO_TOKEN = "mock-km-owner-token"
+MOCK_USERS = [
+    {"id": "mock-owner-1", "name": "Demo Owner", "email": OWNER_DEMO_EMAIL, "role": "OWNER", "isDeleted": False, "photoUrl": None, "createdAt": "2026-01-12T09:30:00Z", "updatedAt": "2026-08-14T07:18:53Z"},
+    {"id": "mock-manager-1", "name": "Admin 2", "email": DEMO_EMAIL, "role": "MANAGER", "isDeleted": False, "photoUrl": None, "createdAt": "2026-02-15T10:00:00Z", "updatedAt": "2026-08-14T07:18:53Z"},
+    {"id": "mock-staff-1", "name": "Aung Kyaw", "email": "aung.staff@example.com", "role": "STAFF", "isDeleted": False, "photoUrl": None, "createdAt": "2026-03-17T11:20:00Z", "updatedAt": "2026-08-14T07:18:53Z"},
+    {"id": "mock-staff-2", "name": "Hnin Ei", "email": "hnin.staff@example.com", "role": "STAFF", "isDeleted": False, "photoUrl": None, "createdAt": "2026-04-02T06:40:00Z", "updatedAt": "2026-08-14T07:18:53Z"}
+]
+
+
+def mock_role(authorization: Optional[str]) -> Optional[str]:
+    if authorization == f"Bearer {OWNER_DEMO_TOKEN}":
+        return "OWNER"
+    if authorization == f"Bearer {DEMO_TOKEN}":
+        return "MANAGER"
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -287,31 +297,64 @@ MOCK_PROFILE = {
 # -----------------------------------------------------------------------------
 @app.post("/api/auth/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
-    if request.email.strip().lower() != DEMO_EMAIL or request.password != DEMO_PASSWORD:
-        return JSONResponse(
-            status_code=401,
-            content={"message": "Incorrect email or password."}
-        )
-
-    return LoginResponse(token=DEMO_TOKEN)
+    normalized_email = request.email.strip().lower()
+    if normalized_email == DEMO_EMAIL and request.password == DEMO_PASSWORD:
+        return LoginResponse(token=DEMO_TOKEN)
+    if normalized_email == OWNER_DEMO_EMAIL and request.password == OWNER_DEMO_PASSWORD:
+        return LoginResponse(token=OWNER_DEMO_TOKEN)
+    return JSONResponse(status_code=401, content={"message": "Incorrect email or password."})
 
 
 @app.post("/api/auth/logout")
 async def logout(authorization: Optional[str] = Header(None)):
-    if authorization != f"Bearer {DEMO_TOKEN}":
+    if mock_role(authorization) is None:
         return JSONResponse(status_code=401, content={"message": "Authentication required."})
     return {"status": "success", "message": "Logged out successfully."}
 
 
 @app.get("/api/users/me")
 async def get_current_user(authorization: Optional[str] = Header(None)):
-    if authorization != f"Bearer {DEMO_TOKEN}":
+    role = mock_role(authorization)
+    if role is None:
         return JSONResponse(status_code=401, content={"message": "Authentication required."})
+    account = next(user for user in MOCK_USERS if user["role"] == role)
     return {
         "status": "success",
         "message": "Your profile fetched successfully",
-        "user": MOCK_PROFILE
+        "user": {key: account[key] for key in ("id", "name", "email", "role", "photoUrl")}
     }
+
+
+@app.get("/api/users")
+async def get_users(
+    authorization: Optional[str] = Header(None),
+    search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100)
+):
+    if mock_role(authorization) not in ("OWNER", "MANAGER"):
+        return JSONResponse(status_code=403, content={"message": "You do not have permission to view users."})
+    users = MOCK_USERS
+    if search:
+        query = search.strip().lower()
+        users = [user for user in users if query in user["name"].lower() or query in user["email"].lower() or query in user["role"].lower()]
+    total = len(users)
+    start = (page - 1) * limit
+    return {
+        "status": "success",
+        "users": users[start:start + limit],
+        "meta": {"totalUserCount": total, "totalPages": max(1, (total + limit - 1) // limit), "currentPage": page, "limit": limit}
+    }
+
+
+@app.get("/api/users/{user_id}")
+async def get_user(user_id: str, authorization: Optional[str] = Header(None)):
+    if mock_role(authorization) not in ("OWNER", "MANAGER"):
+        return JSONResponse(status_code=403, content={"message": "You do not have permission to view this user."})
+    user = next((account for account in MOCK_USERS if account["id"] == user_id), None)
+    if user is None:
+        return JSONResponse(status_code=404, content={"message": "User not found."})
+    return {"status": "success", "message": "User fetched successfully", "user": user}
 
 
 @app.get("/api/loans", response_model=LoansApiResponse)
