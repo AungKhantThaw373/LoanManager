@@ -15,6 +15,7 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.PUT
 import java.util.concurrent.TimeUnit
 
 interface LoanApiService {
@@ -41,6 +42,25 @@ interface LoanApiService {
         @Path("userId") userId: String,
         @Header("Authorization") token: String
     ): UserDetailApiResponse
+
+    @POST("api/users/create")
+    suspend fun createUser(
+        @Header("Authorization") token: String,
+        @Body request: CreateUserRequest
+    ): CreateUserApiResponse
+
+    @PATCH("api/users/{userId}/change-password")
+    suspend fun changeUserPassword(
+        @Path("userId") userId: String,
+        @Header("Authorization") token: String,
+        @Body request: ChangePasswordRequest
+    ): UserActionApiResponse
+
+    @PUT("api/users/delete")
+    suspend fun deleteUsers(
+        @Header("Authorization") token: String,
+        @Body request: DeleteUsersRequest
+    ): UserActionApiResponse
 
     @Multipart
     @PATCH("api/users/me")
@@ -164,10 +184,43 @@ data class UsersMetaDto(
     val limit: Int? = null
 )
 
+data class CreateUserRequest(
+    val name: String,
+    val email: String,
+    val password: String,
+    val role: String
+)
+
+data class CreateUserApiResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val data: CreatedUserDto? = null
+)
+
+data class CreatedUserDto(
+    val id: String? = null,
+    val name: String,
+    val email: String,
+    val role: String,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
 data class ChangePasswordRequest(
     val password: String,
     val confirmPassword: String
 )
+
+data class DeleteUsersRequest(val ids: List<String>)
+
+data class UserActionApiResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val result: UserDto? = null,
+    val permanentlyDeletedUsers: DeletedUsersCount? = null
+)
+
+data class DeletedUsersCount(val count: Int? = null)
 
 data class ProfileUpdateApiResponse(
     val status: String? = null,

@@ -12,6 +12,7 @@ import com.example.kotlinmulti.loanmanager.ui.loans.LoanStatus
 import com.example.kotlinmulti.loanmanager.ui.loans.LoanType
 import com.example.kotlinmulti.loanmanager.ui.loans.Summary
 import java.util.Date
+import java.util.UUID
 
 object OfflineDemoMode {
     const val EMAIL = "demo@offline.local"
@@ -57,6 +58,52 @@ object OfflineDemoMode {
         com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-staff-1", "Aung Kyaw", "aung.staff@offline.local", "STAFF", createdAt = "2026-03-17T11:20:00Z"),
         com.example.kotlinmulti.loanmanager.data.remote.UserDto("offline-demo-staff-2", "Hnin Ei", "hnin.staff@offline.local", "STAFF", createdAt = "2026-04-02T06:40:00Z")
     )
+
+    private val mutableDemoUsers = users.toMutableList()
+    private val deletedDemoUserIds = mutableSetOf<String>()
+    private val demoUserPasswords = mutableMapOf(
+        "offline-demo-manager" to "Preview123!",
+        "offline-demo-staff-1" to "Preview123!",
+        "offline-demo-staff-2" to "Preview123!"
+    )
+
+    @Synchronized
+    fun visibleUsers(): List<com.example.kotlinmulti.loanmanager.data.remote.UserDto> =
+        mutableDemoUsers.filterNot { it.id in deletedDemoUserIds }
+
+    @Synchronized
+    fun createDemoUser(name: String, email: String, password: String, role: String): Boolean {
+        val cleanName = name.trim()
+        val cleanEmail = email.trim()
+        val cleanRole = role.uppercase()
+        if (cleanName.isBlank() || cleanEmail.isBlank() || password.isBlank() || cleanRole !in setOf("MANAGER", "STAFF")) return false
+        if (mutableDemoUsers.any { it.id !in deletedDemoUserIds && it.email.equals(cleanEmail, ignoreCase = true) }) return false
+        val id = "offline-demo-user-${UUID.randomUUID()}"
+        mutableDemoUsers.add(
+            com.example.kotlinmulti.loanmanager.data.remote.UserDto(
+                id = id,
+                name = cleanName,
+                email = cleanEmail,
+                role = cleanRole
+            )
+        )
+        demoUserPasswords[id] = password
+        return true
+    }
+
+    @Synchronized
+    fun changeDemoUserPassword(userId: String, currentPassword: String, newPassword: String): Boolean {
+        if (userId == owner.id || userId in deletedDemoUserIds) return false
+        if (demoUserPasswords[userId] != currentPassword || newPassword.isBlank()) return false
+        demoUserPasswords[userId] = newPassword
+        return true
+    }
+
+    @Synchronized
+    fun deleteDemoUser(userId: String): Boolean {
+        if (userId == owner.id || mutableDemoUsers.none { it.id == userId }) return false
+        return deletedDemoUserIds.add(userId)
+    }
 
     val loans: List<LoanRecord> = listOf(
         LoanRecord("demo-loan-1", "KM-MGY 00001", "2026-10-01", "Aung Aung", "10,000,000 MMK", "12,500,000 MMK", "2,500,000 MMK", "10,000,000 MMK", "INDIVIDUAL", "ACTIVE"),

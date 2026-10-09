@@ -1,4 +1,6 @@
 from typing import List, Optional, Dict
+from datetime import datetime, timezone
+from uuid import uuid4
 from fastapi import FastAPI, Query, Header
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
@@ -98,6 +100,19 @@ class LoginResponse(BaseModel):
     status: str = "success"
     message: str = "User logged in successfully"
     token: str
+
+class CreateUserRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: str
+
+class ChangeOtherUserPasswordRequest(BaseModel):
+    password: str
+    confirmPassword: str
+
+class DeleteUsersRequest(BaseModel):
+    ids: List[str]
 
 
 # -----------------------------------------------------------------------------
@@ -282,14 +297,30 @@ MOCK_USERS = [
     {"id": "mock-staff-1", "name": "Aung Kyaw", "email": "aung.staff@example.com", "role": "STAFF", "isDeleted": False, "photoUrl": None, "createdAt": "2026-03-17T11:20:00Z", "updatedAt": "2026-08-14T07:18:53Z"},
     {"id": "mock-staff-2", "name": "Hnin Ei", "email": "hnin.staff@example.com", "role": "STAFF", "isDeleted": False, "photoUrl": None, "createdAt": "2026-04-02T06:40:00Z", "updatedAt": "2026-08-14T07:18:53Z"}
 ]
+MOCK_USER_PASSWORDS = {
+    "mock-manager-1": DEMO_PASSWORD,
+    "mock-staff-1": "staff123",
+    "mock-staff-2": "staff123"
+}
+MOCK_USER_TOKENS = {
+    "mock-owner-1": OWNER_DEMO_TOKEN,
+    "mock-manager-1": DEMO_TOKEN,
+    "mock-staff-1": "mock-km-staff-1-token",
+    "mock-staff-2": "mock-km-staff-2-token"
+}
+
+
+def mock_user(authorization: Optional[str]) -> Optional[dict]:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.removeprefix("Bearer ")
+    user_id = next((key for key, value in MOCK_USER_TOKENS.items() if value == token), None)
+    return next((user for user in MOCK_USERS if user["id"] == user_id), None)
 
 
 def mock_role(authorization: Optional[str]) -> Optional[str]:
-    if authorization == f"Bearer {OWNER_DEMO_TOKEN}":
-        return "OWNER"
-    if authorization == f"Bearer {DEMO_TOKEN}":
-        return "MANAGER"
-    return None
+    user = mock_user(authorization)
+    return user["role"] if user else None
 
 
 # -----------------------------------------------------------------------------
@@ -298,10 +329,11 @@ def mock_role(authorization: Optional[str]) -> Optional[str]:
 @app.post("/api/auth/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
     normalized_email = request.email.strip().lower()
-    if normalized_email == DEMO_EMAIL and request.password == DEMO_PASSWORD:
-        return LoginResponse(token=DEMO_TOKEN)
-    if normalized_email == OWNER_DEMO_EMAIL and request.password == OWNER_DEMO_PASSWORD:
-        return LoginResponse(token=OWNER_DEMO_TOKEN)
+    user = next((account for account in MOCK_USERS if account["email"].lower() == normalized_email), None)
+    if user and user["role"] == "OWNER" and request.password == OWNER_DEMO_PASSWORD:
+        return LoginResponse(token=MOCK_USER_TOKENS[user["id"]])
+    if user and MOCK_USER_PASSWORDS.get(user["id"]) == request.password:
+        return LoginResponse(token=MOCK_USER_TOKENS[user["id"]])
     return JSONResponse(status_code=401, content={"message": "Incorrect email or password."})
 
 
@@ -314,14 +346,49 @@ async def logout(authorization: Optional[str] = Header(None)):
 
 @app.get("/api/users/me")
 async def get_current_user(authorization: Optional[str] = Header(None)):
-    role = mock_role(authorization)
-    if role is None:
+    account = mock_user(authorization)
+    if account is None:
         return JSONResponse(status_code=401, content={"message": "Authentication required."})
-    account = next(user for user in MOCK_USERS if user["role"] == role)
     return {
         "status": "success",
         "message": "Your profile fetched successfully",
         "user": {key: account[key] for key in ("id", "name", "email", "role", "photoUrl")}
+    }
+
+
+@app.post("/api/users/create", status_code=201)
+async def create_user(request: CreateUserRequest, authorization: Optional[str] = Header(None)):
+    if mock_role(authorization) != "OWNER":
+        return JSONResponse(status_code=403, content={"status": "forbidden", "message": "Only owners may create users."})
+    name = request.name.strip()
+    email = request.email.strip().lower()
+    role = request.role.strip().upper()
+    if not name or not email or not request.password.strip():
+        return JSONResponse(status_code=400, content={"status": "fail", "message": "Name, email, and password are required."})
+    if role not in ("MANAGER", "STAFF"):
+        return JSONResponse(status_code=400, content={"status": "fail", "message": "Role must be MANAGER or STAFF."})
+    if any(user["email"].lower() == email for user in MOCK_USERS):
+        return JSONResponse(status_code=409, content={"status": "fail", "message": "Email already exists."})
+
+    user_id = str(uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    user = {
+        "id": user_id,
+        "name": name,
+        "email": email,
+        "role": role,
+        "isDeleted": False,
+        "photoUrl": None,
+        "createdAt": created_at,
+        "updatedAt": created_at
+    }
+    MOCK_USERS.append(user)
+    MOCK_USER_PASSWORDS[user_id] = request.password
+    MOCK_USER_TOKENS[user_id] = f"mock-km-{user_id}-token"
+    return {
+        "status": "success",
+        "message": "User registered successfully",
+        "data": {key: user[key] for key in ("id", "name", "email", "role", "createdAt", "updatedAt")}
     }
 
 
@@ -355,6 +422,56 @@ async def get_user(user_id: str, authorization: Optional[str] = Header(None)):
     if user is None:
         return JSONResponse(status_code=404, content={"message": "User not found."})
     return {"status": "success", "message": "User fetched successfully", "user": user}
+
+
+@app.patch("/api/users/{user_id}/change-password")
+async def change_other_user_password(
+    user_id: str,
+    request: ChangeOtherUserPasswordRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if mock_role(authorization) != "OWNER":
+        return JSONResponse(status_code=403, content={"status": "forbidden", "message": "Only owners may change another user's password."})
+    user = next((account for account in MOCK_USERS if account["id"] == user_id), None)
+    if user is None:
+        return JSONResponse(status_code=404, content={"status": "fail", "message": "User not found."})
+    if user["role"] == "OWNER":
+        return JSONResponse(status_code=403, content={"status": "forbidden", "message": "An owner's password cannot be changed through this route."})
+    if MOCK_USER_PASSWORDS.get(user_id) != request.confirmPassword:
+        return JSONResponse(status_code=400, content={"status": "fail", "message": "The user's current password is incorrect."})
+    if not request.password.strip():
+        return JSONResponse(status_code=400, content={"status": "fail", "message": "A new password is required."})
+
+    MOCK_USER_PASSWORDS[user_id] = request.password
+    user["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    result = {key: user.get(key) for key in ("id", "name", "email", "role", "photoUrl", "createdAt", "updatedAt")}
+    return {"status": "Success", "message": "Successfully changed the password of a user.", "result": result}
+
+
+@app.put("/api/users/delete")
+async def permanently_delete_users(
+    request: DeleteUsersRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if mock_role(authorization) != "OWNER":
+        return JSONResponse(status_code=403, content={"status": "forbidden", "message": "Only owners may permanently delete users."})
+    if not request.ids:
+        return JSONResponse(status_code=400, content={"status": "fail", "message": "The ids field must be a non-empty array."})
+
+    requested_ids = set(request.ids)
+    deletable_ids = {
+        user["id"] for user in MOCK_USERS
+        if user["id"] in requested_ids and user["role"] != "OWNER"
+    }
+    MOCK_USERS[:] = [user for user in MOCK_USERS if user["id"] not in deletable_ids]
+    for deleted_id in deletable_ids:
+        MOCK_USER_PASSWORDS.pop(deleted_id, None)
+    count = len(deletable_ids)
+    return {
+        "status": "Success",
+        "message": f"{count} users deleted permanently.",
+        "permanentlyDeletedUsers": {"count": count}
+    }
 
 
 @app.get("/api/loans", response_model=LoansApiResponse)

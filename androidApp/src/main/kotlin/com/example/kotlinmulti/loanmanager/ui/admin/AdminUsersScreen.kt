@@ -17,20 +17,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -38,19 +46,25 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kotlinmulti.loanmanager.data.remote.CreateUserRequest
 import com.example.kotlinmulti.loanmanager.data.remote.LoanApiService
 import com.example.kotlinmulti.loanmanager.data.remote.UserDto
 import com.example.kotlinmulti.loanmanager.ui.components.CustomBottomNavigationBar
 import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import retrofit2.HttpException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,12 +80,17 @@ fun AdminUsersScreen(
     var errorMessage by remember(authToken) { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var retryKey by remember { mutableStateOf(0) }
+    var showCreateUserDialog by remember { mutableStateOf(false) }
+    var isCreatingUser by remember { mutableStateOf(false) }
+    var createUserError by remember { mutableStateOf<String?>(null) }
+    var createUserSuccess by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(authToken, isOfflinePreview, retryKey) {
         isLoading = true
         errorMessage = null
         if (isOfflinePreview) {
-            users = OfflineDemoMode.users
+            users = OfflineDemoMode.visibleUsers()
             totalCount = users.size
         } else {
             runCatching {
@@ -89,6 +108,53 @@ fun AdminUsersScreen(
         isLoading = false
     }
 
+    fun createUser(name: String, email: String, password: String, role: String) {
+        val cleanName = name.trim()
+        val cleanEmail = email.trim()
+        if (cleanName.isBlank() || cleanEmail.isBlank() || password.isBlank()) {
+            createUserError = "Enter a name, email, password, and role."
+            return
+        }
+        if (!cleanEmail.contains('@')) {
+            createUserError = "Enter a valid email address."
+            return
+        }
+        coroutineScope.launch {
+            isCreatingUser = true
+            createUserError = null
+            createUserSuccess = null
+            runCatching {
+                if (isOfflinePreview) {
+                    check(OfflineDemoMode.createDemoUser(cleanName, cleanEmail, password, role)) {
+                        "That email already exists or the user details are invalid."
+                    }
+                    "User created in this offline preview."
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val response = LoanApiService.instance.createUser(
+                            token = "Bearer $authToken",
+                            request = CreateUserRequest(
+                                name = cleanName,
+                                email = cleanEmail,
+                                password = password,
+                                role = role
+                            )
+                        )
+                        check(response.data != null) { response.message ?: "The server did not return the created user." }
+                        response.message ?: "User registered successfully."
+                    }
+                }
+            }.onSuccess { message ->
+                showCreateUserDialog = false
+                createUserSuccess = message
+                retryKey++
+            }.onFailure { failure ->
+                createUserError = failure.apiMessageOr("Could not create this user.")
+            }
+            isCreatingUser = false
+        }
+    }
+
     val visibleUsers = remember(users, query) {
         users.filter { user ->
             query.isBlank() || user.name.contains(query, ignoreCase = true) ||
@@ -103,6 +169,17 @@ fun AdminUsersScreen(
                     Column {
                         Text("Loan Manager", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Text("Admin console", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .8f))
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            createUserError = null
+                            showCreateUserDialog = true
+                        },
+                        enabled = !isCreatingUser
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add user")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -153,6 +230,14 @@ fun AdminUsersScreen(
                     focusedBorderColor = MaterialTheme.colorScheme.primary
                 )
             )
+            if (createUserSuccess != null) {
+                Text(
+                    createUserSuccess!!,
+                    modifier = Modifier.padding(start = 18.dp, top = 9.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             Text(
                 text = if (query.isBlank()) "USERS" else "${visibleUsers.size} MATCHING USERS",
                 modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp),
@@ -186,6 +271,90 @@ fun AdminUsersScreen(
             }
         }
     }
+
+    if (showCreateUserDialog) {
+        CreateUserDialog(
+            isSaving = isCreatingUser,
+            errorMessage = createUserError,
+            onDismiss = { if (!isCreatingUser) showCreateUserDialog = false },
+            onCreate = ::createUser
+        )
+    }
+}
+
+@Composable
+private fun CreateUserDialog(
+    isSaving: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onCreate: (name: String, email: String, password: String, role: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("STAFF") }
+    var roleMenuExpanded by remember { mutableStateOf(false) }
+    val valid = name.isNotBlank() && email.contains('@') && password.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add user") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Name") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Email") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { roleMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Role: ${role.toRoleLabel()}", modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Select role")
+                    }
+                    DropdownMenu(
+                        expanded = roleMenuExpanded,
+                        onDismissRequest = { roleMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Manager") },
+                            onClick = { role = "MANAGER"; roleMenuExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Staff") },
+                            onClick = { role = "STAFF"; roleMenuExpanded = false }
+                        )
+                    }
+                }
+                if (errorMessage != null) {
+                    Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(name, email, password, role) },
+                enabled = valid && !isSaving
+            ) { Text(if (isSaving) "Creating…" else "Create user") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancel") } }
+    )
 }
 
 @Composable
@@ -215,3 +384,9 @@ private fun UserDirectoryRow(user: UserDto, onClick: () -> Unit) {
 internal fun String.initials(): String = trim().split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull() }.joinToString("").uppercase().ifBlank { "U" }
 
 internal fun String.toRoleLabel(): String = replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+
+private fun Throwable.apiMessageOr(fallback: String): String {
+    val responseBody = (this as? HttpException)?.response()?.errorBody()?.string()
+    val serverMessage = runCatching { JSONObject(responseBody.orEmpty()).optString("message") }.getOrNull()
+    return serverMessage?.takeIf(String::isNotBlank) ?: localizedMessage ?: fallback
+}

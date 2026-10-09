@@ -201,8 +201,15 @@ fun AppNavigation() {
                 UserDetailScreen(
                     userId = entry.arguments?.getString("userId").orEmpty(),
                     authToken = token,
+                    isOwner = isOwner,
                     isOfflinePreview = OfflineDemoMode.isSession(token),
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    onUserDeleted = {
+                        navController.navigate("admin") {
+                            popUpTo("admin") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
         }
