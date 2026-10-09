@@ -40,6 +40,7 @@ fun AppNavigation() {
     val authToken by session.token.collectAsStateWithLifecycle()
     val role by session.role.collectAsStateWithLifecycle()
     val isOwner = role.equals("OWNER", ignoreCase = true)
+    val canViewAdmin = isOwner || role.equals("MANAGER", ignoreCase = true)
 
     LaunchedEffect(authToken) {
         val token = authToken ?: return@LaunchedEffect
@@ -77,7 +78,7 @@ fun AppNavigation() {
             LoansScreen(
                 navController = navController,
                 authToken = authToken,
-                showAdmin = isOwner
+                showAdmin = canViewAdmin
             )
         }
 
@@ -85,7 +86,7 @@ fun AppNavigation() {
             RepaymentsScreen(
                 navController = navController,
                 authToken = authToken,
-                showAdmin = isOwner
+                showAdmin = canViewAdmin
             )
         }
 
@@ -145,7 +146,7 @@ fun AppNavigation() {
             } else {
                 ProfileScreen(
                     authToken = token,
-                    showAdmin = isOwner,
+                    showAdmin = canViewAdmin,
                     onNavigate = { route ->
                         navController.navigate(route) {
                             popUpTo("loans") { saveState = true }
@@ -166,14 +167,15 @@ fun AppNavigation() {
 
         composable("admin") {
             val token = authToken
-            if (token == null || !isOwner) {
-                LaunchedEffect(token, isOwner) { navController.popBackStack() }
+            if (token == null || !canViewAdmin) {
+                LaunchedEffect(token, canViewAdmin) { navController.popBackStack() }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
                 AdminUsersScreen(
                     authToken = token,
+                    isOwner = isOwner,
                     isOfflinePreview = OfflineDemoMode.isSession(token),
                     onNavigate = { route ->
                         navController.navigate(route) {
@@ -192,8 +194,8 @@ fun AppNavigation() {
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
         ) { entry ->
             val token = authToken
-            if (token == null || !isOwner) {
-                LaunchedEffect(token, isOwner) { navController.popBackStack() }
+            if (token == null || !canViewAdmin) {
+                LaunchedEffect(token, canViewAdmin) { navController.popBackStack() }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }

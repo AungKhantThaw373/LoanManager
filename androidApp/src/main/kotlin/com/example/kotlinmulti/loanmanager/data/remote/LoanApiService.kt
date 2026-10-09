@@ -12,10 +12,10 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
-import retrofit2.http.PUT
 import java.util.concurrent.TimeUnit
 
 interface LoanApiService {
@@ -108,7 +108,7 @@ interface LoanApiService {
     ): RepaymentsApiResponse
 
     companion object {
-        val BASE_URL: String = com.example.kotlinmulti.BuildConfig.LOAN_API_BASE_URL
+        val BASE_URL: String = "http://localhost:3000"
 
         fun create(): LoanApiService {
             val client = OkHttpClient.Builder()

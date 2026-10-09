@@ -18,8 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -60,8 +60,8 @@ import com.example.kotlinmulti.loanmanager.data.remote.LoanApiService
 import com.example.kotlinmulti.loanmanager.data.remote.UserDto
 import com.example.kotlinmulti.loanmanager.ui.components.CustomBottomNavigationBar
 import com.example.kotlinmulti.loanmanager.ui.demo.OfflineDemoMode
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import retrofit2.HttpException
@@ -70,6 +70,7 @@ import retrofit2.HttpException
 @Composable
 fun AdminUsersScreen(
     authToken: String,
+    isOwner: Boolean,
     isOfflinePreview: Boolean,
     onNavigate: (String) -> Unit,
     onUserClick: (String) -> Unit
@@ -109,6 +110,7 @@ fun AdminUsersScreen(
     }
 
     fun createUser(name: String, email: String, password: String, role: String) {
+        if (!isOwner) return
         val cleanName = name.trim()
         val cleanEmail = email.trim()
         if (cleanName.isBlank() || cleanEmail.isBlank() || password.isBlank()) {
@@ -172,14 +174,21 @@ fun AdminUsersScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            createUserError = null
-                            showCreateUserDialog = true
-                        },
-                        enabled = !isCreatingUser
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add user")
+                    if (isOwner) {
+                        IconButton(
+                            onClick = {
+                                createUserError = null
+                                showCreateUserDialog = true
+                            },
+                            enabled = !isCreatingUser
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add user",
+                                tint = androidx.compose.ui.graphics.Color.White // Add this line
+                            )
+
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
